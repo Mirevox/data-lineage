@@ -1,6 +1,7 @@
 import { createServer, type IncomingMessage, type ServerResponse } from "node:http";
 import { readFileSync } from "node:fs";
-import { resolve } from "node:path";
+import { resolve, dirname } from "node:path";
+import { fileURLToPath } from "node:url";
 import { ZodError } from "zod";
 import { DataLineageModule } from "../module.js";
 import {
@@ -12,8 +13,22 @@ import {
 
 const PORT = Number(process.env.MIREVOX_LINEAGE_PORT ?? 3847);
 const HOST = process.env.MIREVOX_LINEAGE_HOST ?? "127.0.0.1";
+const CORS_ORIGIN = process.env.MIREVOX_LINEAGE_CORS_ORIGIN ?? "*";
 const MAX_BODY_BYTES = 1_048_576; // 1 MiB
 const explicitRulesPath = process.env.MIREVOX_LINEAGE_RULES;
+
+function packageVersion(): string {
+  try {
+    const here = dirname(fileURLToPath(import.meta.url));
+    const pkgPath = resolve(here, "../../package.json");
+    const pkg = JSON.parse(readFileSync(pkgPath, "utf8")) as { version?: string };
+    return pkg.version ?? "0.0.0";
+  } catch {
+    return "0.0.0";
+  }
+}
+
+const VERSION = packageVersion();
 
 function loadRules(): ResidencyRule[] {
   const path = explicitRulesPath ?? resolve(process.cwd(), "config/residency-rules.json");
@@ -90,7 +105,7 @@ function send(res: ServerResponse, status: number, body: unknown): void {
   const payload = JSON.stringify(body, null, 2);
   res.writeHead(status, {
     "content-type": "application/json; charset=utf-8",
-    "access-control-allow-origin": "*",
+    "access-control-allow-origin": CORS_ORIGIN,
   });
   res.end(payload);
 }
@@ -100,7 +115,7 @@ const server = createServer(async (req, res) => {
     const url = new URL(req.url ?? "/", `http://${HOST}:${PORT}`);
     if (req.method === "OPTIONS") {
       res.writeHead(204, {
-        "access-control-allow-origin": "*",
+        "access-control-allow-origin": CORS_ORIGIN,
         "access-control-allow-methods": "GET,POST,OPTIONS",
         "access-control-allow-headers": "content-type",
       });
@@ -108,8 +123,16 @@ const server = createServer(async (req, res) => {
       return;
     }
 
-    if (req.method === "GET" && url.pathname === "/health") {
-      send(res, 200, { ok: true, service: "@mirevox/data-lineage", version: "0.1.0" });
+    if (
+      req.method === "GET" &&
+      (url.pathname === "/health" || url.pathname === "/readyz")
+    ) {
+      send(res, 200, {
+        ok: true,
+        service: "@mirevox/data-lineage",
+        version: VERSION,
+        role: "demo-trace-api",
+      });
       return;
     }
 
@@ -165,10 +188,14 @@ const server = createServer(async (req, res) => {
     if (req.method === "GET" && url.pathname === "/") {
       send(res, 200, {
         name: "@mirevox/data-lineage",
+        version: VERSION,
+        role: "demo-trace-api",
+        note: "Decision-record / residency-policy demo — not an enforcing gateway. Callers must enforce RouteDecision before egress.",
         endpoints: {
           "GET /health": "liveness",
+          "GET /readyz": "readiness (same checks as /health in v1)",
           "GET /rules": "active residency rules",
-          "GET /graph?correlationId=": "lineage snapshot",
+          "GET /graph?correlationId=": "in-memory lineage snapshot (ephemeral)",
           "POST /v1/trace": "tag → policy → graph → decision checksum (PerimeterProof)",
         },
       });
