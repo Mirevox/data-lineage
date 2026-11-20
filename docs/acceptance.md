@@ -102,3 +102,9 @@ Addressed after this report against HEAD `ad1feac`+:
 | Push to GitHub | **Still blocked** — Cursor `ghs_` 404 on private org; `GH_TOKEN` 401 |
 
 Remaining optional: `createApp()` factory, fuller `tests/server.test.ts`, deny+leaving `tool_call` → `withinPerimeter: false` (kept decision-record semantics: non-allow stays `withinPerimeter: true`).
+
+---
+
+## 6. Gemini acceptance agent completion note
+
+[Gemini: acceptance validation](bc-5e082281-da9b-5521-bf2b-746094ee2758) FAIL was against HEAD `2e63aed`. Subsequent commits through `64a8a13` closed the required code deltas (preferLocal, verify schema, sidecar 400/413/fail-closed, CLI cleanup, edge-case suite **48/48**). Remaining optional items (`createApp` factory, deny+leaving `tool_call` → `withinPerimeter: false`) are non-blocking for the locked v1 slice. Push remains App-grant / `GH_TOKEN` pending.
