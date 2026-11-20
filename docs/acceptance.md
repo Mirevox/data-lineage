@@ -84,3 +84,21 @@ Core build/smoke run cleanly offline (`npm run typecheck`, `npm run build`, orig
    - `tests/proof.test.ts` (new): test `claimLevel` schema rejection of `"tee_attested"`, `tool_call` with `leavesPerimeter: true` (both on `allow` and `deny`), empty-edge `allow` fail-closed, and `verify()` on intact, key-reordered, tampered, and schema-invalid proofs.
    - `tests/ingress.test.ts`: add `parseIngressTag`, invalid enum `ZodError`, `Uint8Array` digest parity, absent payload (`undefined`), canary plaintext zero-leakage (`NFR-04`), and `labels` preservation + non-string rejection.
    - `tests/server.test.ts` (new): test `GET /health`, `GET /rules`, `POST /v1/trace` (`200` and `400`), `GET /graph?correlationId=`, `404`, `413` (>1 MiB), and fail-closed `MIREVOX_LINEAGE_RULES`.
+
+---
+
+## 5. Post-acceptance follow-up (orchestrator)
+
+Addressed after this report against HEAD `ad1feac`+:
+
+| Delta | Status |
+| --- | --- |
+| preferLocal soft reroute | Fixed in `src/policy/residency.ts` |
+| Multi-rule soundness + edge-case suite | `tests/edge-cases.test.ts` 46/46 green |
+| Server ZodError→400, 413 1MiB, fail-closed `MIREVOX_LINEAGE_RULES` | Fixed in `src/server/main.ts` |
+| `PerimeterProver.verify` schema check | Fixed (`safeParse` before digest) |
+| CLI `graph` usage / bare `--rules` | Fixed in `src/cli.ts` |
+| Claim-honesty JSDoc / GET `/` wording | Fixed |
+| Push to GitHub | **Still blocked** — Cursor `ghs_` 404 on private org; `GH_TOKEN` 401 |
+
+Remaining optional: `createApp()` factory, fuller `tests/server.test.ts`, deny+leaving `tool_call` → `withinPerimeter: false` (kept decision-record semantics: non-allow stays `withinPerimeter: true`).

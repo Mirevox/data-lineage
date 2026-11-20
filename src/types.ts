@@ -43,7 +43,7 @@ export const ProviderEndpointSchema = z.object({
   /** Declared residency of the provider endpoint / region. */
   residency: ResidencyRegionSchema,
   endpoint: z.string().url().or(z.string().startsWith("local://")),
-  /** If true, traffic leaves the operator perimeter. */
+  /** Caller-declared: whether this endpoint leaves the operator network (untrusted). */
   leavesPerimeter: z.boolean(),
 });
 export type ProviderEndpoint = z.infer<typeof ProviderEndpointSchema>;
@@ -110,7 +110,7 @@ export const PerimeterProofSchema = z.object({
   proofId: z.string().min(1),
   correlationId: z.string().min(1),
   tenantId: z.string().min(1),
-  /** Soft attestation: software-enforced policy path, not TEE. */
+  /** SHA-256 of assembled decision JSON only — not TEE or network enforcement. */
   claimLevel: z.literal("software_attested"),
   withinPerimeter: z.boolean(),
   egressHops: z.array(

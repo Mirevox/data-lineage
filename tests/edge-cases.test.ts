@@ -250,18 +250,19 @@ describe("tenant-scoped rules (tenant-acme-ca)", () => {
       blockedResidencies: ["eu"],
     });
 
-    // localCa fails eu-pii-stay (ca ∉ eu|onprem); multi-rule soundness → deny
-    const stillDenied = decide(engine, "acme", ["pii"], localEu, [localCa]);
-    expect(stillDenied).toMatchObject({
+    const caOnly = decide(engine, "acme", ["pii"], localEu, [localCa]);
+    expect(caOnly).toMatchObject({
       decision: "deny",
       matchedRuleId: "tenant-acme-ca",
+      reason: "Rule tenant-acme-ca: residency eu not in allow list ca,onprem.",
     });
+    expect(caOnly.suggestedEndpoint).toBeUndefined();
+
     const rerouted = decide(engine, "acme", ["pii"], localEu, [localOnprem]);
-    // localOnprem fails tenant-acme-ca (onprem ok for tenant, but wait — onprem IS allowed)
-    // tenant allows ca|onprem; eu-pii allows eu|onprem → intersection onprem
     expect(rerouted).toMatchObject({
       decision: "reroute",
       matchedRuleId: "tenant-acme-ca",
+      reason: "Rule tenant-acme-ca: residency eu not in allow list ca,onprem.",
       suggestedEndpoint: localOnprem,
     });
   });
@@ -428,7 +429,7 @@ describe("secrets prefer-local", () => {
     });
   });
 
-  it("prefers a non-leaving alternative when denyLeavePerimeter is off", () => {
+  it("does not hard-fail a leaving candidate on preferLocal alone", () => {
     const preferLocal: ResidencyRule = {
       id: "secrets-prefer-local",
       description: "soft local preference for secrets",
@@ -441,31 +442,55 @@ describe("secrets prefer-local", () => {
     };
     const soft = new ResidencyPolicyEngine([preferLocal]);
 
-    const rerouted = decide(soft, "globex", ["secrets"], cloudUs, [cloudEu, localOnprem]);
-    expect(rerouted).toMatchObject({
-      decision: "reroute",
-      matchedRuleId: "secrets-prefer-local",
-      reason: "Rule secrets-prefer-local: prefer local; candidate leaves perimeter.",
-      suggestedEndpoint: localOnprem,
-      blockedResidencies: [],
-    });
-
-    const noLegalLocal = decide(soft, "globex", ["secrets"], cloudUs, [cloudEu]);
-    expect(noLegalLocal).toMatchObject({
+    const allowed = decide(soft, "globex", ["secrets"], cloudUs, [cloudEu, localOnprem]);
+    expect(allowed).toMatchObject({
       decision: "allow",
       matchedRuleId: "secrets-prefer-local",
       reason: "Matched 1 rule(s); candidate permitted.",
       blockedResidencies: [],
     });
-
-    const alreadyLocal = decide(soft, "globex", ["secrets"], localOnprem, [cloudUs]);
-    expect(alreadyLocal.decision).toBe("allow");
-
-    const notSecrets = decide(soft, "globex", ["public"], cloudUs, [localOnprem]);
-    expect(notSecrets.reason).toBe("No residency rules matched; default allow.");
+    expect(allowed.suggestedEndpoint).toBeUndefined();
+    expect(decide(soft, "globex", ["secrets"], localOnprem, [cloudUs]).decision).toBe("allow");
+    expect(decide(soft, "globex", ["public"], cloudUs, [localOnprem]).reason).toBe(
+      "No residency rules matched; default allow.",
+    );
   });
 
-  it("does not treat an out-of-policy local endpoint as the preferred target", () => {
+  it("rejects leaving alternatives when preferLocal is set and the candidate already failed", () => {
+    const preferLocal: ResidencyRule = {
+      id: "secrets-prefer-local",
+      description: "hard local preference for suggestions",
+      tenants: [],
+      allowResidencies: ["onprem", "us", "eu"],
+      whenDataClasses: ["secrets"],
+      preferLocal: true,
+      denyLeavePerimeter: false,
+      priority: 1,
+    };
+    const engine = new ResidencyPolicyEngine([preferLocal]);
+    const reason =
+      "Rule secrets-prefer-local: residency global not in allow list onprem,us,eu.";
+
+    const rerouted = decide(engine, "globex", ["secrets"], globalInside, [cloudEu, localOnprem]);
+    expect(rerouted).toMatchObject({
+      decision: "reroute",
+      matchedRuleId: "secrets-prefer-local",
+      reason,
+      suggestedEndpoint: localOnprem,
+      blockedResidencies: ["global"],
+    });
+
+    const denied = decide(engine, "globex", ["secrets"], globalInside, [cloudEu]);
+    expect(denied).toMatchObject({
+      decision: "deny",
+      matchedRuleId: "secrets-prefer-local",
+      reason,
+      blockedResidencies: ["global"],
+    });
+    expect(denied.suggestedEndpoint).toBeUndefined();
+  });
+
+  it("does not suggest a local endpoint outside the allow list", () => {
     const preferLocal: ResidencyRule = {
       id: "secrets-prefer-local",
       description: "local must also be in the allow list",
@@ -476,10 +501,19 @@ describe("secrets prefer-local", () => {
       denyLeavePerimeter: false,
       priority: 1,
     };
-    const decision = decide(new ResidencyPolicyEngine([preferLocal]), "globex", ["secrets"], cloudUs, [
-      localOnprem,
-    ]);
-    expect(decision.decision).toBe("allow");
+    const decision = decide(
+      new ResidencyPolicyEngine([preferLocal]),
+      "globex",
+      ["secrets"],
+      globalInside,
+      [localOnprem, cloudEu],
+    );
+    expect(decision).toMatchObject({
+      decision: "deny",
+      matchedRuleId: "secrets-prefer-local",
+      reason: "Rule secrets-prefer-local: residency global not in allow list us,eu.",
+      blockedResidencies: ["global"],
+    });
     expect(decision.suggestedEndpoint).toBeUndefined();
   });
 });
@@ -694,6 +728,8 @@ describe("perimeter proof digest and withinPerimeter", () => {
     expect(canonicalDigest(body)).toBe(digest);
     expect(canonicalDigest(reverseKeys(body))).toBe(digest);
     expect(canonicalDigest({ ...body, withinPerimeter: !body.withinPerimeter })).not.toBe(digest);
+    expect(prover.verify(proof)).toBe(true);
+    expect(prover.verify({ ...proof, withinPerimeter: !proof.withinPerimeter })).toBe(false);
     expect(proof.claimLevel).toBe("software_attested");
   });
 
@@ -702,6 +738,8 @@ describe("perimeter proof digest and withinPerimeter", () => {
     const second = build("allow", [false]);
     expect(first.proofId).not.toBe(second.proofId);
     expect(first.digest).not.toBe(second.digest);
+    expect(prover.verify(first)).toBe(true);
+    expect(prover.verify(second)).toBe(true);
     expect(first.withinPerimeter).toBe(true);
     expect(second.withinPerimeter).toBe(true);
     expect(first.issuedAt).toBe("2026-06-01T00:00:00.000Z");
@@ -746,8 +784,47 @@ describe("perimeter proof digest and withinPerimeter", () => {
       now: issued,
     });
     expect(proof.egressHops).toEqual([]);
-    // allow + no egress/tool_call hops cannot attest a perimeter stay
     expect(proof.withinPerimeter).toBe(false);
+  });
+
+  it("counts tool_call hops toward withinPerimeter", () => {
+    const node = LineageNodeSchema.parse({
+      id: "tool:search",
+      kind: "tool",
+      label: "search",
+      residency: "us",
+      meta: {},
+    });
+    const toolEdge = (leavesPerimeter: boolean) =>
+      LineageEdgeSchema.parse({
+        id: "tool-1",
+        from: "router",
+        to: "tool:search",
+        kind: "tool_call",
+        correlationId: tag.correlationId,
+        leavesPerimeter,
+        at: "2026-03-01T00:00:00.000Z",
+        meta: {},
+      });
+
+    const leaving = prover.build({
+      tag,
+      decision: decision("allow"),
+      edges: [toolEdge(true)],
+      nodes: [node],
+      now: issued,
+    });
+    expect(leaving.egressHops.map((hop) => hop.leavesPerimeter)).toEqual([true]);
+    expect(leaving.withinPerimeter).toBe(false);
+
+    const staying = prover.build({
+      tag,
+      decision: decision("allow"),
+      edges: [toolEdge(false)],
+      nodes: [node],
+      now: issued,
+    });
+    expect(staying.withinPerimeter).toBe(true);
   });
 });
 

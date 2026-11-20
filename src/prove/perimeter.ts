@@ -70,8 +70,10 @@ export class PerimeterProver {
   }
 
   /** Recompute digest and compare (offline verify of this module's checksum). */
-  verify(proof: PerimeterProof): boolean {
-    const { digest, ...rest } = proof;
+  verify(proof: unknown): boolean {
+    const parsed = PerimeterProofSchema.safeParse(proof);
+    if (!parsed.success) return false;
+    const { digest, ...rest } = parsed.data;
     return digestBody(rest) === digest;
   }
 }

@@ -169,7 +169,7 @@ const server = createServer(async (req, res) => {
           "GET /health": "liveness",
           "GET /rules": "active residency rules",
           "GET /graph?correlationId=": "lineage snapshot",
-          "POST /v1/trace": "tag → policy → graph → perimeter proof",
+          "POST /v1/trace": "tag → policy → graph → decision checksum (PerimeterProof)",
         },
       });
       return;

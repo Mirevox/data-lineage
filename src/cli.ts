@@ -11,7 +11,6 @@ import {
 function usage(): never {
   console.error(`Usage:
   mirevox-lineage trace <request.json> [--rules rules.json]
-  mirevox-lineage graph <correlationId>   # requires prior in-process trace (demo only)
 
 trace: read a JSON request body matching POST /v1/trace and print the result.
 `);
@@ -33,6 +32,10 @@ if (cmd === "trace") {
   const file = args[1];
   if (!file) usage();
   const rulesIdx = args.indexOf("--rules");
+  if (rulesIdx >= 0 && !args[rulesIdx + 1]) {
+    console.error("--rules requires a path argument");
+    process.exit(2);
+  }
   const rulesPath = rulesIdx >= 0 ? args[rulesIdx + 1] : undefined;
   const body = JSON.parse(readFileSync(file, "utf8")) as {
     tenantId: string;
