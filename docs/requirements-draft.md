@@ -1,7 +1,9 @@
 # Mirevox `data-lineage` — Draft Requirements (v1)
 
+> **Post-lock / superseded notice:** This draft is preserved for council provenance only. Locked v1 scope, non-goals, and claim limits live in [docs/requirements.md](requirements.md) and [docs/problem-statement.md](problem-statement.md). Do **not** treat draft items (SQLite WAL ledger, Ed25519, TLS observation, DLP classifiers, YAML policy DSL, OTel/Prometheus exporters, GDPR evidence) as shipped v1 capabilities.
+
 **Module:** `data-lineage` (https://github.com/Mirevox/data-lineage)
-**Status:** Draft (input to Requirements Vetter, Architect, and FR/NFR Author)
+**Status:** Draft — **superseded by locked `docs/requirements.md`**
 **Target Runtime:** Single Linux cloud VM (Docker-friendly later; no full homelab cluster)
 
 ---

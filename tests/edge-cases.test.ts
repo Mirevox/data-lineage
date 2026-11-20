@@ -761,9 +761,11 @@ describe("perimeter proof digest and withinPerimeter", () => {
     ["allow", [false, true], false],
     ["allow", [true], false],
     ["allow", [], false],
-    ["deny", [true, true], true],
-    ["reroute", [true], true],
-    ["require_local", [true], true],
+    ["deny", [], true],
+    ["deny", [true, true], false],
+    ["reroute", [true], false],
+    ["require_local", [true], false],
+    ["require_local", [false], true],
   ] as const)(
     "sets withinPerimeter for %s egress %j to %s",
     (name, leaves, expected) => {
@@ -772,6 +774,57 @@ describe("perimeter proof digest and withinPerimeter", () => {
       expect(proof.egressHops.map((hop) => hop.leavesPerimeter)).toEqual([...leaves]);
     },
   );
+
+  it("sets withinPerimeter false for deny + leaving tool_call (FR-PRV-02)", () => {
+    const node = LineageNodeSchema.parse({
+      id: "tool:search",
+      kind: "tool",
+      label: "search",
+      residency: "us",
+      meta: {},
+    });
+    const edge = LineageEdgeSchema.parse({
+      id: "tool-1",
+      from: "router:default",
+      to: "tool:search",
+      kind: "tool_call",
+      correlationId: tag.correlationId,
+      leavesPerimeter: true,
+      at: "2026-03-01T00:00:00.000Z",
+      meta: {},
+    });
+    const proof = prover.build({
+      tag,
+      decision: decision("deny"),
+      edges: [edge],
+      nodes: [node],
+      now: issued,
+      proofId: "proof-fixed",
+    });
+    expect(proof.withinPerimeter).toBe(false);
+    expect(proof.egressHops).toHaveLength(1);
+  });
+
+  it("is deterministic when proofId and now are injected", () => {
+    const first = prover.build({
+      tag,
+      decision: decision("allow"),
+      edges: [],
+      nodes: [],
+      now: issued,
+      proofId: "proof-fixed",
+    });
+    const second = prover.build({
+      tag,
+      decision: decision("allow"),
+      edges: [],
+      nodes: [],
+      now: issued,
+      proofId: "proof-fixed",
+    });
+    expect(first.digest).toBe(second.digest);
+    expect(first.proofId).toBe("proof-fixed");
+  });
 
   it("ignores leavesPerimeter on non-egress edges", () => {
     const proof = prover.build({

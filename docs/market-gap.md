@@ -5,6 +5,8 @@ cursor:
 
 # Market gap: AI traffic data lineage
 
+> **Framing note:** Pre-lock market research. Locked v1 ships a decision-record library (not CloudTrail adapters, OTel export, or signed JSONL). See [problem-statement.md](problem-statement.md) and [requirements.md](requirements.md).
+
 _Research date: 2026-11-20_
 
 ## Bottom line

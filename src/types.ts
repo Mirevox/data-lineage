@@ -42,7 +42,19 @@ export const ProviderEndpointSchema = z.object({
   modelId: z.string().min(1),
   /** Declared residency of the provider endpoint / region. */
   residency: ResidencyRegionSchema,
-  endpoint: z.string().url().or(z.string().startsWith("local://")),
+  endpoint: z
+    .string()
+    .min(1)
+    .refine(
+      (value) =>
+        value.startsWith("local://") ||
+        value.startsWith("http://") ||
+        value.startsWith("https://"),
+      {
+        message:
+          "endpoint must be an http://, https://, or local:// URL",
+      },
+    ),
   /** Caller-declared: whether this endpoint leaves the operator network (untrusted). */
   leavesPerimeter: z.boolean(),
 });

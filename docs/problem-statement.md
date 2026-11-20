@@ -8,15 +8,15 @@
 
 Teams that route AI traffic across cloud providers (Bedrock, Foundry, Vertex) and local models lose a clear answer to: *for this request, what data class left, under which residency rule, to which declared endpoint?*
 
-Unified routers hide that path. Fallbacks and remote tool calls make it worse: an “EU-primary” route with an unrestricted global fallback is not an EU-resident route. Hyperscaler audit logs only see their own cloud. Gateway observability products log requests well, but rarely bind **ingress classification → policy decision → chosen route** into one portable, content-minimized evidence record.
+Unified routers hide that path. Fallbacks and remote tool calls make it worse: an “EU-primary” route with an unrestricted global fallback is not an EU-resident route. Hyperscaler audit logs only see their own cloud. Gateway observability products log requests well, but rarely bind **ingress classification → policy decision → chosen route** into one portable, content-minimized decision record.
 
 ## What v1 actually solves
 
-A small **router-side TypeScript module** that:
+A small **router-side TypeScript library** (plus an optional local demo HTTP sidecar and CLI that open no outbound sockets and do not proxy or enforce traffic) that:
 
-1. **Tags** AI-bound requests (`tenantId`, `declaredResidency`, `dataClasses`, optional SHA-256 `contentDigest` — no raw payload retention on the tag).
-2. **Evaluates** residency rules into `allow | deny | reroute | require_local` (caller must enforce before opening an upstream socket).
-3. **Records** an in-memory declared-hop lineage graph for the request correlation id.
+1. **Tags** AI-bound requests (`tenantId`, `declaredResidency`, `dataClasses`, optional SHA-256 `contentDigest`). `payload` is optional — when supplied it is hashed without retaining plaintext on the tag; omit it if prompt bytes must not enter the module.
+2. **Evaluates** residency rules into `allow | deny | reroute | require_local` via `DataLineageModule` / `policyHook` (caller must enforce before opening an upstream socket).
+3. **Records** an **in-process, ephemeral** declared-hop lineage graph for the request correlation id (lost on restart; call `clear()` in long-running routers).
 4. **Emits** a `PerimeterProof` with `claimLevel: "software_attested"` — a SHA-256 checksum over the recorded decision JSON, **not** TEE, network, or provider-region proof.
 
 ## What v1 does **not** claim
