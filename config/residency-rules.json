@@ -1,0 +1,32 @@
+[
+  {
+    "id": "eu-pii-stay",
+    "description": "EU PII/PHI must stay in eu or onprem and must not leave the perimeter",
+    "tenants": [],
+    "allowResidencies": ["eu", "onprem"],
+    "whenDataClasses": ["pii", "phi"],
+    "preferLocal": true,
+    "denyLeavePerimeter": true,
+    "priority": 10
+  },
+  {
+    "id": "secrets-local",
+    "description": "Secrets must not leave perimeter; prefer on-prem",
+    "tenants": [],
+    "allowResidencies": ["onprem", "eu", "us", "uk", "ca", "apac"],
+    "whenDataClasses": ["secrets"],
+    "preferLocal": true,
+    "denyLeavePerimeter": true,
+    "priority": 20
+  },
+  {
+    "id": "tenant-acme-ca",
+    "description": "Tenant acme restricted to ca/onprem",
+    "tenants": ["acme"],
+    "allowResidencies": ["ca", "onprem"],
+    "whenDataClasses": [],
+    "preferLocal": false,
+    "denyLeavePerimeter": false,
+    "priority": 30
+  }
+]
