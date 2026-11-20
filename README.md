@@ -81,11 +81,12 @@ const { tag, decision, graph, proof } = lineage.traceRequest({ /* ... */ });
 
 ## Docs
 
-- [Problem & opportunity](docs/problem-opportunity.md)
+- [Problem & opportunity](docs/problem-opportunity.md) (pre-lock exploration draft)
 - [Requirements](docs/requirements.md) (locked after council)
 - [Architecture](docs/architecture.md)
 - [Market gap](docs/market-gap.md)
 - [Devil’s advocate](docs/devils-advocate.md)
+- [Acceptance report](docs/acceptance.md)
 
 ## License
 

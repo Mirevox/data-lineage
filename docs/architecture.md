@@ -59,10 +59,10 @@ Rules sorted by ascending `priority`. First applicable rule that denies, require
 
 | Input | Trust |
 | --- | --- |
-| `declaredResidency`, `dataClasses`, `leavesPerimeter` | Caller-declared; untrusted |
+| `declaredResidency`, `dataClasses`, `candidate.residency`, `leavesPerimeter` | Caller-declared; untrusted |
 | Rule file | Operator-trusted |
 | Proof digest | Self-hash of this process’s JSON; not an external trust anchor |
-| Graph store | Process memory; lost on restart |
+| Graph store | Process memory; ephemeral (lost on restart; call `LineageGraph.clear()` to bound memory in long-running routers) |
 
 ## Docker
 

@@ -1,5 +1,7 @@
 # Mirevox `data-lineage` — Problem & Opportunity
 
+> **Post-lock notice:** This document is the pre-lock exploration draft preserved for council provenance. Locked v1 scope, non-goals, and claim limits are defined in [docs/requirements.md](requirements.md); see also [docs/devils-advocate.md](devils-advocate.md). Do not treat pre-lock items (hash-chained ledger, Ed25519 signing, TLS observation, compliance/GDPR evidence) as shipped v1 capabilities.
+
 **Module:** `data-lineage` (https://github.com/Mirevox/data-lineage)
 **Umbrella:** Mirevox (open-source modular agentic control plane)
 **Placement:** Router-side control-plane module on the `smart-router` request/egress path (also usable standalone with any OpenAI-compatible or custom AI gateway)
