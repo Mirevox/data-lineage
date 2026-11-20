@@ -19,10 +19,12 @@ export interface BuildProofInput {
 }
 
 /**
- * Software-attested perimeter proof for a single AI request path.
+ * Decision-record checksum for a single AI request path.
  *
- * Honest claim level: `software_attested` — proves the *recorded* policy path
- * and egress hops under this module's observation. Not TEE / network-enforced.
+ * `claimLevel: software_attested` means: SHA-256 over the JSON this module
+ * assembled (tag + decision + recorded hops). It does **not** mean TEE quote,
+ * network enforcement, provider-region verification, or that denied traffic
+ * never left the host — the router must enforce `decision` itself.
  */
 export class PerimeterProver {
   build(input: BuildProofInput): PerimeterProof {

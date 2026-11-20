@@ -11,9 +11,9 @@
   },
   {
     "id": "secrets-local",
-    "description": "Secrets must not leave perimeter; prefer on-prem",
+    "description": "Secrets must stay on-prem and must not leave the operator perimeter",
     "tenants": [],
-    "allowResidencies": ["onprem", "eu", "us", "uk", "ca", "apac"],
+    "allowResidencies": ["onprem"],
     "whenDataClasses": ["secrets"],
     "preferLocal": true,
     "denyLeavePerimeter": true,

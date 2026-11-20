@@ -1,0 +1,23 @@
+{
+  "tenantId": "demo",
+  "sourceId": "vscode",
+  "declaredResidency": "eu",
+  "dataClasses": ["pii"],
+  "payload": "redacted clinical note",
+  "candidate": {
+    "providerId": "bedrock",
+    "modelId": "claude-3",
+    "residency": "us",
+    "endpoint": "https://bedrock.amazonaws.com",
+    "leavesPerimeter": true
+  },
+  "alternatives": [
+    {
+      "providerId": "local",
+      "modelId": "llama-3",
+      "residency": "onprem",
+      "endpoint": "local://llama",
+      "leavesPerimeter": false
+    }
+  ]
+}

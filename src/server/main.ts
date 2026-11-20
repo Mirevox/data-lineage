@@ -42,9 +42,9 @@ function demoRules(): ResidencyRule[] {
     }),
     ResidencyRuleSchema.parse({
       id: "secrets-local",
-      description: "Secrets prefer on-prem",
+      description: "Secrets must stay on-prem",
       tenants: [],
-      allowResidencies: ["onprem", "eu", "us", "uk", "ca", "apac"],
+      allowResidencies: ["onprem"],
       whenDataClasses: ["secrets"],
       preferLocal: true,
       denyLeavePerimeter: true,

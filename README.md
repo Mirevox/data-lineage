@@ -1,19 +1,19 @@
 # @mirevox/data-lineage
 
-Router-side **AI data lineage and residency tracing** for [Mirevox](https://github.com/Mirevox).
+Router-side **decision record** for AI traffic lineage and residency policy — a Mirevox [module](https://github.com/Mirevox).
 
-Tag ingress, evaluate residency-aware route policy, record an egress/lineage graph, and issue a **software-attested** perimeter proof for AI traffic. Designed to plug into a smart-router — not a new LLM, not a full compliance suite.
+Tag ingress, evaluate residency-aware route policy hooks, record an egress/lineage graph, and emit a **software checksum** over that recorded path. Plug into a smart-router before provider egress. Not a new LLM, not a network perimeter, not a compliance product.
 
 ## v1 slice
 
 | Piece | What it does |
 | --- | --- |
-| Ingress tagging | Correlation id, tenant, residency, data classes, optional content digest |
-| Residency policy hooks | `allow` / `deny` / `reroute` / `require_local` against rules |
-| Lineage graph | Client → ingress → router → policy → provider → region |
-| Perimeter proof | `claimLevel: software_attested` over the recorded path |
+| Ingress tagging | Correlation id, tenant, declared residency, data classes, optional content digest |
+| Residency policy hooks | `allow` / `deny` / `reroute` / `require_local` (caller must enforce) |
+| Lineage graph | Client → ingress → router → policy → provider → region (in-process) |
+| Decision proof | `claimLevel: software_attested` = hash of the recorded decision, not TEE/network proof |
 
-Honest limit: proofs attest the **observed policy path in this module**, not TEE or network enforcement.
+**Honest limit:** `leavesPerimeter` and region labels are caller-declared. This library does not open sockets, read CloudTrail, or prove bytes stayed inside a perimeter. Default with no matching rule is **allow** (fail-open until you add rules).
 
 ## Quick start
 
