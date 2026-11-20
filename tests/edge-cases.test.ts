@@ -429,7 +429,7 @@ describe("secrets prefer-local", () => {
     });
   });
 
-  it("does not hard-fail a leaving candidate on preferLocal alone", () => {
+  it("reroutes a leaving secrets candidate to a local alternative when preferLocal is set", () => {
     const preferLocal: ResidencyRule = {
       id: "secrets-prefer-local",
       description: "soft local preference for secrets",
@@ -442,14 +442,23 @@ describe("secrets prefer-local", () => {
     };
     const soft = new ResidencyPolicyEngine([preferLocal]);
 
-    const allowed = decide(soft, "globex", ["secrets"], cloudUs, [cloudEu, localOnprem]);
-    expect(allowed).toMatchObject({
+    const rerouted = decide(soft, "globex", ["secrets"], cloudUs, [cloudEu, localOnprem]);
+    expect(rerouted).toMatchObject({
+      decision: "reroute",
+      matchedRuleId: "secrets-prefer-local",
+      reason: "Rule secrets-prefer-local: prefer local; candidate leaves perimeter.",
+      suggestedEndpoint: localOnprem,
+      blockedResidencies: [],
+    });
+
+    const noLocal = decide(soft, "globex", ["secrets"], cloudUs, [cloudEu]);
+    expect(noLocal).toMatchObject({
       decision: "allow",
       matchedRuleId: "secrets-prefer-local",
       reason: "Matched 1 rule(s); candidate permitted.",
       blockedResidencies: [],
     });
-    expect(allowed.suggestedEndpoint).toBeUndefined();
+    expect(noLocal.suggestedEndpoint).toBeUndefined();
     expect(decide(soft, "globex", ["secrets"], localOnprem, [cloudUs]).decision).toBe("allow");
     expect(decide(soft, "globex", ["public"], cloudUs, [localOnprem]).reason).toBe(
       "No residency rules matched; default allow.",
