@@ -16,9 +16,21 @@ export interface EvaluateRouteInput {
   now?: () => Date;
 }
 
+interface EndpointFit {
+  ok: boolean;
+  /** Why it failed the first blocking rule, if any. */
+  blockReason?: string;
+  blockedResidency?: ProviderEndpoint["residency"];
+  /** True when failure is specifically "leaves perimeter" under denyLeavePerimeter. */
+  perimeterBlock?: boolean;
+  matchedRuleId?: string;
+}
+
 /**
  * Residency-aware route policy hooks for a smart-router.
  * Pure evaluation: callers enforce the decision before egress.
+ *
+ * Multi-rule soundness: a reroute suggestion must satisfy *all* applicable rules.
  */
 export class ResidencyPolicyEngine {
   private rules: ResidencyRule[];
@@ -56,80 +68,106 @@ export class ResidencyPolicyEngine {
       });
     }
 
-    for (const rule of applicable) {
-      if (rule.denyLeavePerimeter && candidate.leavesPerimeter) {
-        const local = alternatives.find(
-          (a) => !a.leavesPerimeter && rule.allowResidencies.includes(a.residency),
-        );
-        if (local) {
-          return RouteDecisionSchema.parse({
-            decision: "reroute",
-            reason: `Rule ${rule.id}: destination leaves perimeter; suggest local.`,
-            matchedRuleId: rule.id,
-            suggestedEndpoint: local,
-            blockedResidencies: [candidate.residency],
-            evaluatedAt: now,
-          });
-        }
-        return RouteDecisionSchema.parse({
-          decision: "require_local",
-          reason: `Rule ${rule.id}: destination leaves perimeter; no local alternative.`,
-          matchedRuleId: rule.id,
-          blockedResidencies: [candidate.residency],
-          evaluatedAt: now,
-        });
-      }
-
-      if (!rule.allowResidencies.includes(candidate.residency)) {
-        const alt = alternatives.find((a) =>
-          rule.allowResidencies.includes(a.residency),
-        );
-        if (alt) {
-          return RouteDecisionSchema.parse({
-            decision: "reroute",
-            reason: `Rule ${rule.id}: ${candidate.residency} not in allow list ${rule.allowResidencies.join(",")}.`,
-            matchedRuleId: rule.id,
-            suggestedEndpoint: alt,
-            blockedResidencies: [candidate.residency],
-            evaluatedAt: now,
-          });
-        }
-        return RouteDecisionSchema.parse({
-          decision: "deny",
-          reason: `Rule ${rule.id}: residency ${candidate.residency} not allowed; no alternative.`,
-          matchedRuleId: rule.id,
-          blockedResidencies: [candidate.residency],
-          evaluatedAt: now,
-        });
-      }
-
-      if (rule.preferLocal && candidate.leavesPerimeter) {
-        const local = alternatives.find(
-          (a) =>
-            !a.leavesPerimeter && rule.allowResidencies.includes(a.residency),
-        );
-        if (local) {
-          return RouteDecisionSchema.parse({
-            decision: "reroute",
-            reason: `Rule ${rule.id}: prefer local; candidate leaves perimeter.`,
-            matchedRuleId: rule.id,
-            suggestedEndpoint: local,
-            blockedResidencies: [],
-            evaluatedAt: now,
-          });
-        }
-      }
+    const candidateFit = fitsAllRules(candidate, applicable, { preferLocalSoft: true });
+    if (candidateFit.ok) {
+      return RouteDecisionSchema.parse({
+        decision: "allow",
+        reason: `Matched ${applicable.length} rule(s); candidate permitted.`,
+        matchedRuleId: applicable[applicable.length - 1]?.id,
+        blockedResidencies: [],
+        evaluatedAt: now,
+      });
     }
 
-    const last = applicable[applicable.length - 1];
+    // Prefer an alternative that hard-satisfies every applicable rule
+    // (including preferLocal / denyLeavePerimeter).
+    const hardAlt = alternatives.find(
+      (a) => fitsAllRules(a, applicable, { preferLocalSoft: false }).ok,
+    );
+    if (hardAlt) {
+      return RouteDecisionSchema.parse({
+        decision: "reroute",
+        reason:
+          candidateFit.blockReason ??
+          "Candidate rejected; suggesting alternative that satisfies all rules.",
+        matchedRuleId: candidateFit.matchedRuleId,
+        suggestedEndpoint: hardAlt,
+        blockedResidencies: candidateFit.blockedResidency
+          ? [candidateFit.blockedResidency]
+          : [],
+        evaluatedAt: now,
+      });
+    }
+
+    if (candidateFit.perimeterBlock) {
+      return RouteDecisionSchema.parse({
+        decision: "require_local",
+        reason:
+          candidateFit.blockReason ??
+          "Candidate leaves perimeter; no compliant local alternative.",
+        matchedRuleId: candidateFit.matchedRuleId,
+        blockedResidencies: candidateFit.blockedResidency
+          ? [candidateFit.blockedResidency]
+          : [],
+        evaluatedAt: now,
+      });
+    }
+
     return RouteDecisionSchema.parse({
-      decision: "allow",
-      reason: `Matched ${applicable.length} rule(s); candidate permitted.`,
-      matchedRuleId: last?.id,
-      blockedResidencies: [],
+      decision: "deny",
+      reason:
+        candidateFit.blockReason ??
+        "Candidate residency not allowed; no compliant alternative.",
+      matchedRuleId: candidateFit.matchedRuleId,
+      blockedResidencies: candidateFit.blockedResidency
+        ? [candidateFit.blockedResidency]
+        : [],
       evaluatedAt: now,
     });
   }
+}
+
+/**
+ * @param preferLocalSoft When true, preferLocal violations do not hard-fail
+ *   (used when checking the original candidate so we can still allow if no
+ *   local alternative exists). When false, preferLocal is a hard constraint
+ *   for suggested alternatives.
+ */
+function fitsAllRules(
+  endpoint: ProviderEndpoint,
+  rules: ResidencyRule[],
+  opts: { preferLocalSoft: boolean },
+): EndpointFit {
+  for (const rule of rules) {
+    if (!rule.allowResidencies.includes(endpoint.residency)) {
+      return {
+        ok: false,
+        blockReason: `Rule ${rule.id}: residency ${endpoint.residency} not in allow list ${rule.allowResidencies.join(",")}.`,
+        blockedResidency: endpoint.residency,
+        matchedRuleId: rule.id,
+        perimeterBlock: false,
+      };
+    }
+    if (rule.denyLeavePerimeter && endpoint.leavesPerimeter) {
+      return {
+        ok: false,
+        blockReason: `Rule ${rule.id}: destination leaves perimeter.`,
+        blockedResidency: endpoint.residency,
+        matchedRuleId: rule.id,
+        perimeterBlock: true,
+      };
+    }
+    if (rule.preferLocal && endpoint.leavesPerimeter && !opts.preferLocalSoft) {
+      return {
+        ok: false,
+        blockReason: `Rule ${rule.id}: prefer local; endpoint leaves perimeter.`,
+        blockedResidency: endpoint.residency,
+        matchedRuleId: rule.id,
+        perimeterBlock: true,
+      };
+    }
+  }
+  return { ok: true };
 }
 
 function matchesRule(rule: ResidencyRule, tag: IngressTag): boolean {

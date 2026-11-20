@@ -14,7 +14,6 @@ export interface BuildProofInput {
   decision: RouteDecision;
   edges: LineageEdge[];
   nodes: LineageNode[];
-  /** Only treat allow+leavesPerimeter as leaving. Denied paths stay within. */
   now?: () => Date;
 }
 
@@ -28,8 +27,9 @@ export interface BuildProofInput {
  */
 export class PerimeterProver {
   build(input: BuildProofInput): PerimeterProof {
-    const egress = input.edges
-      .filter((e) => e.kind === "egress")
+    const leavingKinds = new Set(["egress", "tool_call"]);
+    const hops = input.edges
+      .filter((e) => leavingKinds.has(e.kind))
       .map((e) => {
         const toNode = input.nodes.find((n) => n.id === e.to);
         return {
@@ -40,10 +40,16 @@ export class PerimeterProver {
         };
       });
 
-    const withinPerimeter =
-      input.decision.decision !== "allow"
-        ? true
-        : egress.every((h) => !h.leavesPerimeter);
+    let withinPerimeter: boolean;
+    if (input.decision.decision !== "allow") {
+      // Decision record says do not send; we do not observe whether caller obeyed.
+      withinPerimeter = true;
+    } else if (hops.length === 0) {
+      // Allow with no recorded leaving hops cannot attest a perimeter stay.
+      withinPerimeter = false;
+    } else {
+      withinPerimeter = hops.every((h) => !h.leavesPerimeter);
+    }
 
     const issuedAt = (input.now?.() ?? new Date()).toISOString();
     const proofId = randomUUID();
@@ -53,17 +59,27 @@ export class PerimeterProver {
       tenantId: input.tag.tenantId,
       claimLevel: "software_attested" as const,
       withinPerimeter,
-      egressHops: egress,
+      egressHops: hops,
       policyDecision: input.decision,
       ingressTag: input.tag,
       issuedAt,
     };
-    const digest = `sha256:${createHash("sha256")
-      .update(stableStringify(body))
-      .digest("hex")}`;
+    const digest = digestBody(body);
 
     return PerimeterProofSchema.parse({ ...body, digest });
   }
+
+  /** Recompute digest and compare (offline verify of this module's checksum). */
+  verify(proof: PerimeterProof): boolean {
+    const { digest, ...rest } = proof;
+    return digestBody(rest) === digest;
+  }
+}
+
+function digestBody(body: unknown): string {
+  return `sha256:${createHash("sha256")
+    .update(stableStringify(body))
+    .digest("hex")}`;
 }
 
 function stableStringify(value: unknown): string {
