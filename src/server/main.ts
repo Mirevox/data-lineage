@@ -1,6 +1,7 @@
 import { createServer, type IncomingMessage, type ServerResponse } from "node:http";
 import { readFileSync } from "node:fs";
 import { resolve } from "node:path";
+import { ZodError } from "zod";
 import { DataLineageModule } from "../module.js";
 import {
   ProviderEndpointSchema,
@@ -11,11 +12,11 @@ import {
 
 const PORT = Number(process.env.MIREVOX_LINEAGE_PORT ?? 3847);
 const HOST = process.env.MIREVOX_LINEAGE_HOST ?? "127.0.0.1";
+const MAX_BODY_BYTES = 1_048_576; // 1 MiB
+const explicitRulesPath = process.env.MIREVOX_LINEAGE_RULES;
 
 function loadRules(): ResidencyRule[] {
-  const path =
-    process.env.MIREVOX_LINEAGE_RULES ??
-    resolve(process.cwd(), "config/residency-rules.json");
+  const path = explicitRulesPath ?? resolve(process.cwd(), "config/residency-rules.json");
   try {
     const raw = JSON.parse(readFileSync(path, "utf8")) as unknown;
     if (!Array.isArray(raw)) {
@@ -23,6 +24,12 @@ function loadRules(): ResidencyRule[] {
     }
     return raw.map((r) => ResidencyRuleSchema.parse(r));
   } catch (err) {
+    // Explicit env path must fail closed; default config path may fall back to demos.
+    if (explicitRulesPath) {
+      throw new Error(
+        `Failed to load MIREVOX_LINEAGE_RULES=${explicitRulesPath}: ${String(err)}`,
+      );
+    }
     console.warn(`[lineage] using built-in demo rules (${String(err)})`);
     return demoRules();
   }
@@ -57,12 +64,26 @@ const module_ = new DataLineageModule(loadRules());
 
 async function readJson(req: IncomingMessage): Promise<unknown> {
   const chunks: Buffer[] = [];
+  let total = 0;
   for await (const chunk of req) {
-    chunks.push(Buffer.isBuffer(chunk) ? chunk : Buffer.from(chunk));
+    const buf = Buffer.isBuffer(chunk) ? chunk : Buffer.from(chunk);
+    total += buf.length;
+    if (total > MAX_BODY_BYTES) {
+      const err = new Error(`request body exceeds ${MAX_BODY_BYTES} bytes`);
+      (err as Error & { statusCode?: number }).statusCode = 413;
+      throw err;
+    }
+    chunks.push(buf);
   }
   const body = Buffer.concat(chunks).toString("utf8");
   if (!body) return {};
-  return JSON.parse(body) as unknown;
+  try {
+    return JSON.parse(body) as unknown;
+  } catch {
+    const err = new Error("invalid JSON body");
+    (err as Error & { statusCode?: number }).statusCode = 400;
+    throw err;
+  }
 }
 
 function send(res: ServerResponse, status: number, body: unknown): void {
@@ -156,6 +177,20 @@ const server = createServer(async (req, res) => {
 
     send(res, 404, { error: "not found" });
   } catch (err) {
+    const statusFromErr =
+      err && typeof err === "object" && "statusCode" in err
+        ? Number((err as { statusCode?: number }).statusCode)
+        : undefined;
+    if (err instanceof ZodError) {
+      send(res, 400, { error: "validation failed", details: err.flatten() });
+      return;
+    }
+    if (statusFromErr === 400 || statusFromErr === 413) {
+      send(res, statusFromErr, {
+        error: err instanceof Error ? err.message : String(err),
+      });
+      return;
+    }
     send(res, 500, { error: err instanceof Error ? err.message : String(err) });
   }
 });

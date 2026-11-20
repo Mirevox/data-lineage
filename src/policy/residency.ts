@@ -70,6 +70,27 @@ export class ResidencyPolicyEngine {
 
     const candidateFit = fitsAllRules(candidate, applicable, { preferLocalSoft: true });
     if (candidateFit.ok) {
+      // Soft preferLocal: candidate is legal, but reroute if a fully compliant
+      // non-leaving alternative exists under every applicable rule.
+      if (candidate.leavesPerimeter) {
+        const preferRules = applicable.filter((r) => r.preferLocal);
+        if (preferRules.length > 0) {
+          const localAlt = alternatives.find(
+            (a) => fitsAllRules(a, applicable, { preferLocalSoft: false }).ok,
+          );
+          if (localAlt) {
+            const matched = preferRules[0];
+            return RouteDecisionSchema.parse({
+              decision: "reroute",
+              reason: `Rule ${matched?.id}: prefer local; candidate leaves perimeter.`,
+              matchedRuleId: matched?.id,
+              suggestedEndpoint: localAlt,
+              blockedResidencies: [],
+              evaluatedAt: now,
+            });
+          }
+        }
+      }
       return RouteDecisionSchema.parse({
         decision: "allow",
         reason: `Matched ${applicable.length} rule(s); candidate permitted.`,

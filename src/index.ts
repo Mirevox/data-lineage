@@ -10,6 +10,7 @@ export type { EvaluateRouteInput, RoutePolicyHook } from "./policy/residency.js"
 export { LineageGraph } from "./graph/lineage.js";
 export { PerimeterProver } from "./prove/perimeter.js";
 export type { BuildProofInput } from "./prove/perimeter.js";
+
 export {
   IngressTagSchema,
   ProviderEndpointSchema,
