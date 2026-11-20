@@ -139,15 +139,8 @@ function fitsAllRules(
   opts: { preferLocalSoft: boolean },
 ): EndpointFit {
   for (const rule of rules) {
-    if (!rule.allowResidencies.includes(endpoint.residency)) {
-      return {
-        ok: false,
-        blockReason: `Rule ${rule.id}: residency ${endpoint.residency} not in allow list ${rule.allowResidencies.join(",")}.`,
-        blockedResidency: endpoint.residency,
-        matchedRuleId: rule.id,
-        perimeterBlock: false,
-      };
-    }
+    // Perimeter checks before residency allow-list so denyLeavePerimeter
+    // yields require_local (not deny) when no compliant alternative exists.
     if (rule.denyLeavePerimeter && endpoint.leavesPerimeter) {
       return {
         ok: false,
@@ -155,6 +148,15 @@ function fitsAllRules(
         blockedResidency: endpoint.residency,
         matchedRuleId: rule.id,
         perimeterBlock: true,
+      };
+    }
+    if (!rule.allowResidencies.includes(endpoint.residency)) {
+      return {
+        ok: false,
+        blockReason: `Rule ${rule.id}: residency ${endpoint.residency} not in allow list ${rule.allowResidencies.join(",")}.`,
+        blockedResidency: endpoint.residency,
+        matchedRuleId: rule.id,
+        perimeterBlock: false,
       };
     }
     if (rule.preferLocal && endpoint.leavesPerimeter && !opts.preferLocalSoft) {

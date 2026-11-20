@@ -8,12 +8,12 @@ Tag ingress, evaluate residency-aware route policy hooks, record an egress/linea
 
 | Piece | What it does |
 | --- | --- |
-| Ingress tagging | Correlation id, tenant, declared residency, data classes, optional content digest |
+| Ingress tagging | Correlation id, tenant, `declaredResidency`, `dataClasses`, optional `contentDigest` |
 | Residency policy hooks | `allow` / `deny` / `reroute` / `require_local` (caller must enforce) |
-| Lineage graph | Client → ingress → router → policy → provider → region (in-process) |
-| Decision proof | `claimLevel: software_attested` = hash of the recorded decision, not TEE/network proof |
+| Lineage graph | Client → ingress → router → policy → provider → region (in-process, ephemeral) |
+| Decision checksum (`PerimeterProof`) | `claimLevel: software_attested` = SHA-256 of the recorded JSON decision, not TEE/network proof |
 
-**Honest limit:** `leavesPerimeter` and region labels are caller-declared. This library does not open sockets, read CloudTrail, or prove bytes stayed inside a perimeter. Default with no matching rule is **allow** (fail-open until you add rules).
+**Honest limit:** `declaredResidency`, `dataClasses`, `candidate.residency`, and `leavesPerimeter` are caller-declared and untrusted. This library does not open sockets, observe DNS/TLS, read CloudTrail, or prove bytes stayed inside a perimeter. **Do not treat `PerimeterProof` or `claimLevel: software_attested` as network-perimeter enforcement or GDPR/HIPAA/EU AI Act/SOC2 compliance evidence.** Default with no matching rule is **allow** (fail-open until you add rules). In-memory `LineageGraph` state is ephemeral per process — call `lineage.graph.clear()` periodically in long-running routers until durable storage ships.
 
 ## Quick start
 
@@ -22,6 +22,19 @@ npm install
 npm test
 npm run build
 npm run dev   # http://127.0.0.1:3847
+```
+
+Demo HTTP endpoints (default `127.0.0.1:3847`, configured via `MIREVOX_LINEAGE_HOST`, `MIREVOX_LINEAGE_PORT`, `MIREVOX_LINEAGE_RULES`):
+
+- `GET /health` — liveness
+- `GET /rules` — active residency rules (`config/residency-rules.json`)
+- `GET /graph?correlationId=<id>` — in-memory lineage snapshot
+- `POST /v1/trace` — tag → policy → graph → decision checksum
+
+CLI trace:
+
+```bash
+node dist/cli.js trace examples/sample-request.json --rules config/residency-rules.json
 ```
 
 Trace a request:
