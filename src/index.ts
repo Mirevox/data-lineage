@@ -1,6 +1,11 @@
 export { DataLineageModule } from "./module.js";
 export type { TraceRequestInput, TraceRequestResult } from "./module.js";
-export { IngressTagger, digestPayload, parseIngressTag } from "./ingress/tagger.js";
+export {
+  IngressTagger,
+  detectPayloadDataClasses,
+  digestPayload,
+  parseIngressTag,
+} from "./ingress/tagger.js";
 export type { TagIngressInput } from "./ingress/tagger.js";
 export {
   ResidencyPolicyEngine,

@@ -104,4 +104,19 @@ describe("IngressTagger", () => {
     expect(result.tag.contentDigest).toMatch(/^sha256:[a-f0-9]{64}$/);
     expect(result.proof.ingressTag.labels.appcode).toBe("appcode-xyz-0");
   });
+
+  it("auto-classifies pii and secrets in payload without retaining raw payload", () => {
+    const tagger = new IngressTagger();
+    const secretPayload = "Contact alice@example.com with key sk-1234567890abcdef1234";
+    const tag = tagger.tag({
+      tenantId: "acme",
+      sourceId: "vscode",
+      declaredResidency: "eu",
+      payload: secretPayload,
+      autoClassify: true,
+    });
+    expect(tag.dataClasses).toContain("pii");
+    expect(tag.dataClasses).toContain("secrets");
+    expect(JSON.stringify(tag)).not.toContain("alice@example.com");
+  });
 });

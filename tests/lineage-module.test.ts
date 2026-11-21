@@ -1,4 +1,8 @@
+import { mkdtempSync, rmSync } from "node:fs";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
 import { describe, expect, it } from "vitest";
+import { LineageGraph } from "../src/graph/lineage.js";
 import { DataLineageModule } from "../src/module.js";
 import type { ProviderEndpoint, ResidencyRule } from "../src/types.js";
 
@@ -74,5 +78,29 @@ describe("DataLineageModule", () => {
     });
     expect(["deny", "require_local", "reroute"]).toContain(result.decision.decision);
     expect(result.proof.withinPerimeter).toBe(true);
+  });
+
+  it("persists and reloads lineage graph snapshots to/from disk", () => {
+    const dir = mkdtempSync(join(tmpdir(), "mirevox-lineage-"));
+    try {
+      const file = join(dir, "graph.json");
+      const mod = new DataLineageModule(rules);
+      const res = mod.traceRequest({
+        tenantId: "acme",
+        sourceId: "vscode",
+        declaredResidency: "eu",
+        dataClasses: ["pii"],
+        candidate: local,
+      });
+      mod.graph.saveToFile(file);
+
+      const reloaded = new LineageGraph();
+      reloaded.loadFromFile(file);
+      const snap = reloaded.snapshot(res.tag.correlationId);
+      expect(snap.nodes.length).toBe(res.graph.nodes.length);
+      expect(snap.edges.length).toBe(res.graph.edges.length);
+    } finally {
+      rmSync(dir, { recursive: true, force: true });
+    }
   });
 });

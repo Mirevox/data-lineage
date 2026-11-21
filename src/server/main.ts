@@ -25,6 +25,7 @@ const TraceRequestBodySchema = z.object({
   dataClasses: z.array(DataClassSchema).optional(),
   labels: z.record(z.string(), z.string()).optional(),
   payload: z.union([z.string(), z.instanceof(Uint8Array)]).optional(),
+  autoClassify: z.boolean().optional(),
   candidate: ProviderEndpointSchema,
   alternatives: z.array(ProviderEndpointSchema).optional(),
   routerId: z.string().min(1).optional(),
@@ -124,6 +125,10 @@ function send(res: ServerResponse, status: number, body: unknown): void {
 }
 
 export function createApp(module_ = new DataLineageModule(loadRules())) {
+  const graphFile = process.env.MIREVOX_LINEAGE_GRAPH_FILE?.trim();
+  if (graphFile) {
+    module_.graph.loadFromFile(graphFile);
+  }
   return createServer(async (req, res) => {
     try {
       const url = new URL(req.url ?? "/", `http://${HOST}:${PORT}`);
@@ -175,10 +180,14 @@ export function createApp(module_ = new DataLineageModule(loadRules())) {
           dataClasses: body.dataClasses,
           labels: body.labels,
           payload: body.payload,
+          autoClassify: body.autoClassify,
           candidate: body.candidate,
           alternatives: body.alternatives,
           routerId: body.routerId,
         });
+        if (graphFile) {
+          module_.graph.saveToFile(graphFile);
+        }
         send(res, 200, result);
         return;
       }

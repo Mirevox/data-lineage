@@ -1,4 +1,6 @@
 import { randomUUID } from "node:crypto";
+import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
+import { dirname } from "node:path";
 import {
   LineageEdgeSchema,
   LineageGraphSnapshotSchema,
@@ -193,5 +195,21 @@ export class LineageGraph {
   clear(): void {
     this.nodes.clear();
     this.edges = [];
+  }
+
+  saveToFile(filePath: string): void {
+    mkdirSync(dirname(filePath), { recursive: true });
+    writeFileSync(filePath, JSON.stringify(this.snapshot(), null, 2), "utf8");
+  }
+
+  loadFromFile(filePath: string): void {
+    if (!existsSync(filePath)) return;
+    const raw = JSON.parse(readFileSync(filePath, "utf8")) as unknown;
+    const parsed = LineageGraphSnapshotSchema.parse(raw);
+    this.nodes.clear();
+    for (const node of parsed.nodes) {
+      this.nodes.set(node.id, node);
+    }
+    this.edges = [...parsed.edges];
   }
 }
