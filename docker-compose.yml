@@ -1,0 +1,49 @@
+# One-command standup for the data-lineage demo HTTP sidecar.
+# Usage: cp .env.example .env && docker compose up --build -d
+#
+# This is a trace/decision-record API — not an enforcing AI gateway.
+# Callers must enforce allow/deny/reroute/require_local before provider egress.
+
+services:
+  data-lineage:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    image: mirevox/data-lineage:local
+    container_name: mirevox-data-lineage
+    ports:
+      - "${MIREVOX_LINEAGE_PORT:-3847}:3847"
+    env_file:
+      - path: .env
+        required: false
+    environment:
+      NODE_ENV: production
+      MIREVOX_LINEAGE_HOST: "0.0.0.0"
+      MIREVOX_LINEAGE_PORT: "3847"
+      MIREVOX_LINEAGE_CORS_ORIGIN: "${MIREVOX_LINEAGE_CORS_ORIGIN:-*}"
+      # Pin rules path so misconfigured mounts fail closed instead of silent demos.
+      MIREVOX_LINEAGE_RULES: /app/config/residency-rules.json
+    volumes:
+      # Override rules without rebuilding; keep host file read-only in the container.
+      - ./config/residency-rules.json:/app/config/residency-rules.json:ro
+    healthcheck:
+      test:
+        [
+          "CMD",
+          "node",
+          "-e",
+          "fetch('http://127.0.0.1:3847/health').then((r)=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))",
+        ]
+      interval: 10s
+      timeout: 3s
+      retries: 5
+      start_period: 8s
+    restart: unless-stopped
+    read_only: true
+    tmpfs:
+      - /tmp
+    security_opt:
+      - no-new-privileges:true
+    # Library + demo API only — no extra caps.
+    cap_drop:
+      - ALL

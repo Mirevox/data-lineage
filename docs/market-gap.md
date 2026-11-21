@@ -5,6 +5,8 @@ cursor:
 
 # Market gap: AI traffic data lineage
 
+> **Framing note:** Pre-lock market research. Locked v1 ships a decision-record library (not CloudTrail adapters, OTel export, or signed JSONL). See [problem-statement.md](problem-statement.md) and [requirements.md](requirements.md).
+
 _Research date: 2026-11-20_
 
 ## Bottom line
@@ -180,3 +182,22 @@ Primary documentation, accessed 2026-11-20:
 23. [Kong Skyflow AI Data Control plugin](https://developer.konghq.com/plugins/skyflow-ai-data-control/)
 24. [Nightfall inference hooks and coverage limits](https://help.nightfall.ai/data-exfiltration-prevention/ai-agent-security/ai-governance/auditability-and-control/setup-and-installation/connect-inference-hooks)
 25. [Open Policy Agent decision logs](https://www.openpolicyagent.org/docs/management-decision-logs)
+
+---
+
+## Second-pass validation (2026-11-20)
+
+**Verdict (unchanged): narrow real gap; v1 is a partial answer.**
+
+| Rank | OSS | Paid |
+| --- | --- | --- |
+| 1 | LiteLLM | Portkey |
+| 2 | Helicone | Cloudflare AI Gateway |
+| 3 | Langfuse | LangSmith LLM Gateway |
+| 4 | OpenLineage + Marquez | Kong AI Gateway Enterprise |
+
+v1 differentiates as an embeddable TypeScript **decision-record** (ingress tags → residency hook → graph → `software_attested` checksum), not as a gateway, DLP, or compliance suite. Position accordingly; do not claim provider-region proof or network enforcement.
+
+Dark UI: this repo has **no product UI**. Showcase-site module pages should use the Mirevox dark palette (purple + neon-blue accents); keep this README/docs prose-only.
+
+Full second-pass write-up: project store `internal/data-lineage-validation/market.md`.

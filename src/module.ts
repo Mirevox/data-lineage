@@ -51,14 +51,22 @@ export class DataLineageModule {
       tag,
       candidate: input.candidate,
       alternatives: input.alternatives,
+      now: input.now,
     });
     const { nodes, edges } = this.graph.recordAiHop({
       tag,
       routerId: input.routerId,
       candidate: input.candidate,
       decision,
+      now: input.now,
     });
-    const proof = this.prover.build({ tag, decision, edges, nodes });
+    const proof = this.prover.build({
+      tag,
+      decision,
+      edges,
+      nodes,
+      now: input.now,
+    });
     return {
       tag,
       decision,

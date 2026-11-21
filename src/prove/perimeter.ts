@@ -15,6 +15,8 @@ export interface BuildProofInput {
   edges: LineageEdge[];
   nodes: LineageNode[];
   now?: () => Date;
+  /** Optional fixed id for deterministic digest tests; defaults to UUIDv4. */
+  proofId?: string;
 }
 
 /**
@@ -40,19 +42,22 @@ export class PerimeterProver {
         };
       });
 
+    // Any recorded leaving hop wins over the policy decision label (FR-PRV-02).
     let withinPerimeter: boolean;
-    if (input.decision.decision !== "allow") {
-      // Decision record says do not send; we do not observe whether caller obeyed.
+    if (hops.some((h) => h.leavesPerimeter)) {
+      withinPerimeter = false;
+    } else if (input.decision.decision !== "allow") {
+      // Non-allow with no leaving hops recorded: decision record stayed local.
       withinPerimeter = true;
     } else if (hops.length === 0) {
-      // Allow with no recorded leaving hops cannot attest a perimeter stay.
+      // Allow with no recorded leaving hops cannot record a within-perimeter hop.
       withinPerimeter = false;
     } else {
-      withinPerimeter = hops.every((h) => !h.leavesPerimeter);
+      withinPerimeter = true;
     }
 
     const issuedAt = (input.now?.() ?? new Date()).toISOString();
-    const proofId = randomUUID();
+    const proofId = input.proofId?.trim() || randomUUID();
     const body = {
       proofId,
       correlationId: input.tag.correlationId,

@@ -53,7 +53,7 @@ Caller must not treat HTTP 200 as “egress happened.”
 
 ## Policy evaluation order
 
-Rules sorted by ascending `priority`. First applicable rule that denies, requires local, or suggests reroute wins. Applicability: tenant list (empty = all) and `whenDataClasses` (empty = all classes). If no rule matches → **allow**.
+Rules sorted by ascending `priority`. Matching uses tenant list (empty = all) and `whenDataClasses` (empty = all classes). Evaluation uses `fitsAllRules()` so a candidate or `reroute` suggestion must satisfy **every** applicable rule (not only the first blocking one). Soft `preferLocal` may still reroute a legal leaving candidate when a fully compliant local alternative exists. If no rule matches → **allow**.
 
 ## Trust boundaries
 
