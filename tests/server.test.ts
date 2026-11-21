@@ -112,6 +112,43 @@ describe("demo HTTP server", () => {
     expect(missing.status).toBe(404);
   });
 
+  it("preserves caller correlationId in trace result and GET /graph filter", async () => {
+    const base = await listen();
+    const correlationId = "corr-trace-12345";
+    const res = await fetch(`${base}/v1/trace`, {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({
+        tenantId: "acme",
+        sourceId: "smart-router",
+        declaredResidency: "eu",
+        dataClasses: ["pii"],
+        correlationId,
+        candidate: {
+          providerId: "local",
+          modelId: "llama",
+          residency: "onprem",
+          endpoint: "local://llama",
+          leavesPerimeter: false,
+        },
+      }),
+    });
+    expect(res.status).toBe(200);
+    const traced = (await res.json()) as {
+      tag: { correlationId?: string };
+      graph: { edges: unknown[] };
+    };
+    expect(traced.tag.correlationId).toBe(correlationId);
+    expect(traced.graph.edges.length).toBeGreaterThan(0);
+
+    const graphRes = await fetch(
+      `${base}/graph?correlationId=${encodeURIComponent(correlationId)}`,
+    );
+    expect(graphRes.status).toBe(200);
+    const snapshot = (await graphRes.json()) as { edges: unknown[] };
+    expect(snapshot.edges.length).toBeGreaterThan(0);
+  });
+
   it("returns 413 for oversized bodies", async () => {
     const base = await listen();
     const huge = "x".repeat(1_048_576 + 8);
