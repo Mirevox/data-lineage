@@ -133,3 +133,7 @@ Prefer embedding `DataLineageModule` in `smart-router` for production paths; tre
 ## License
 
 Apache-2.0
+
+## Verification
+
+Test suite, smoke test, and container verification results are recorded in [`VERIFICATION.md`](./VERIFICATION.md).
